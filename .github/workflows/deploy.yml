@@ -1,0 +1,94 @@
+name: Build and deploy
+
+# Builds the Docker image off-instance (the EC2 box is a free-tier t4g.micro
+# with 1GB RAM — building there is slow and can OOM), pushes it to ECR, then
+# tells the instance to pull the new tag and restart.
+#
+# Required repository secrets (Settings -> Secrets and variables -> Actions):
+#   AWS_ACCOUNT_ID       - 12-digit AWS account id
+#   AWS_REGION            - e.g. ap-south-1
+#   AWS_ROLE_TO_ASSUME    - IAM role ARN for OIDC (see docs/AWS-DEPLOY.md)
+#   EC2_HOST              - Elastic IP or DNS name of the instance
+#   EC2_SSH_PRIVATE_KEY   - private key for a deploy-only user on the instance
+#   EC2_SSH_KNOWN_HOSTS   - output of `ssh-keyscan` for EC2_HOST (pinning)
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch: {}
+
+permissions:
+  id-token: write   # required for OIDC -> AWS role assumption
+  contents: read
+
+env:
+  ECR_REPOSITORY: pipelineprep
+  IMAGE_TAG: ${{ github.sha }}
+
+jobs:
+  build-and-push:
+    runs-on: ubuntu-latest
+    outputs:
+      image: ${{ steps.image.outputs.image }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Configure AWS credentials (OIDC)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_TO_ASSUME }}
+          aws-region: ${{ secrets.AWS_REGION }}
+
+      - name: Login to Amazon ECR
+        id: ecr-login
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Set up QEMU (build arm64 image on amd64 runner)
+        uses: docker/setup-qemu-action@v3
+        with:
+          platforms: arm64
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build and push
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          platforms: linux/arm64
+          push: true
+          tags: |
+            ${{ steps.ecr-login.outputs.registry }}/${{ env.ECR_REPOSITORY }}:${{ env.IMAGE_TAG }}
+            ${{ steps.ecr-login.outputs.registry }}/${{ env.ECR_REPOSITORY }}:latest
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Record image
+        id: image
+        run: echo "image=${{ steps.ecr-login.outputs.registry }}/${{ env.ECR_REPOSITORY }}:${{ env.IMAGE_TAG }}" >> "$GITHUB_OUTPUT"
+
+  deploy:
+    needs: build-and-push
+    runs-on: ubuntu-latest
+    steps:
+      - name: Configure AWS credentials (OIDC)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_TO_ASSUME }}
+          aws-region: ${{ secrets.AWS_REGION }}
+
+      - name: Deploy over SSH
+        uses: appleboy/ssh-action@v1.2.0
+        with:
+          host: ${{ secrets.EC2_HOST }}
+          username: deploy
+          key: ${{ secrets.EC2_SSH_PRIVATE_KEY }}
+          # Pin the host key instead of disabling verification, so a DNS/IP
+          # spoof of EC2_HOST cannot MITM the deploy.
+          fingerprint: ${{ secrets.EC2_SSH_KNOWN_HOSTS }}
+          envs: IMAGE_TAG
+          script: |
+            set -e
+            cd ~/app
+            IMAGE_TAG="${{ needs.build-and-push.outputs.image }}" ./deploy.sh

@@ -1,0 +1,84 @@
+# Production stack for a single EC2 instance (free-tier t4g.micro).
+#
+#   ./deploy.sh              # pulls the image named in .image-tag and restarts
+#
+# The image is built by GitHub Actions and pushed to ECR — never built on this
+# instance. A t4g.micro has 1GB RAM; `npm run build` inside `docker build` on
+# a box that size is slow and can OOM. See .github/workflows/deploy.yml.
+#
+# Design notes:
+#
+#   - The app port is NOT published to the host. Only Caddy binds 80/443, and
+#     only Caddy can therefore reach the app. That is the whole point: the app
+#     has no TLS, and exposing 3000 would hand out a plain-HTTP, unencrypted
+#     version of a site that takes passwords and card payments.
+#   - Caddy terminates TLS and obtains/renews the certificate automatically. No
+#     ACM certificate, no ALB, nothing to renew by hand.
+#   - Postgres is deliberately NOT here. It belongs in RDS, which gives backups,
+#     failover and point-in-time recovery. Running it in a container on the same
+#     instance as the app means losing the disk loses the database.
+#
+# See docs/AWS-DEPLOY.md for the full launch procedure.
+
+services:
+  app:
+    # Set by deploy.sh from the IMAGE_TAG passed in, e.g.
+    # 123456789012.dkr.ecr.ap-south-1.amazonaws.com/pipelineprep:latest
+    image: ${IMAGE_TAG:?IMAGE_TAG must be set — run via deploy.sh, not compose directly}
+    container_name: pipelineprep-app
+    restart: unless-stopped
+    # Secrets and configuration come from a file on the host that is never
+    # committed and never copied into the image. See docs/AWS-DEPLOY.md.
+    env_file:
+      - .env.production
+    environment:
+      NODE_ENV: production
+      PORT: "3000"
+      HOSTNAME: "0.0.0.0"
+    expose:
+      - "3000"
+    networks:
+      - internal
+    # No DB here, so nothing to wait for at the compose level; the entrypoint
+    # does its own bounded wait and fails loudly.
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://localhost:3000/api/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "5"
+
+  caddy:
+    image: caddy:2-alpine
+    container_name: pipelineprep-caddy
+    restart: unless-stopped
+    depends_on:
+      - app
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    networks:
+      - internal
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "5"
+
+volumes:
+  caddy_data:
+  caddy_config:
+
+networks:
+  internal:
+    driver: bridge

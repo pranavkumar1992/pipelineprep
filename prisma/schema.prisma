@@ -1,0 +1,727 @@
+// PipelinePrep - Prisma schema
+// Datasource: PostgreSQL. Run `npm run db:push` for a quick schema sync or
+// `npm run db:migrate` to create versioned migrations.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+// Prisma 7 reads the connection URL from prisma.config.ts and connects through
+// a driver adapter (`@prisma/adapter-pg`), so no `url` is declared here.
+datasource db {
+  provider = "postgresql"
+}
+
+// ---------------------------------------------------------------------------
+// Enums
+// ---------------------------------------------------------------------------
+
+enum Role {
+  USER
+  ADMIN
+}
+
+enum Difficulty {
+  EASY
+  MEDIUM
+  HARD
+}
+
+enum ContentStatus {
+  DRAFT
+  PUBLISHED
+  ARCHIVED
+}
+
+enum AttemptSource {
+  QUIZ
+  PRACTICE
+}
+
+enum OrderStatus {
+  CREATED
+  PAID
+  FAILED
+  REFUNDED
+}
+
+enum SubscriptionStatus {
+  ACTIVE
+  EXPIRED
+  CANCELLED
+}
+
+enum CouponType {
+  PERCENT
+  FLAT
+}
+
+enum ReportStatus {
+  OPEN
+  REVIEWED
+  RESOLVED
+  DISMISSED
+}
+
+enum ReportReason {
+  WRONG_ANSWER
+  OUTDATED
+  UNCLEAR
+  DUPLICATE
+  OTHER
+}
+
+enum LeaderboardPeriod {
+  WEEKLY
+  ALLTIME
+}
+
+// Bank levels (addendum §2). Beginner is free; the rest are premium.
+enum BankLevel {
+  BEGINNER
+  INTERMEDIATE
+  ADVANCED
+}
+
+// Which question pool a practice mode draws from (addendum §2A).
+enum PracticeMode {
+  BANK
+  REVISION
+  FOCUS
+  MISTAKES
+  QUICK
+  MOCK
+}
+
+enum Theme {
+  DARK
+  LIGHT
+}
+
+enum WaitlistSource {
+  DASHBOARD
+  PRICING
+  LANDING
+}
+
+enum CareerFeature {
+  RESUME_MAKER
+  JD_MATCH
+  AI_REVIEW
+}
+
+enum WaitlistEvent {
+  TEASER_VIEWED
+  NOTIFY_CLICKED
+  FEATURE_SELECTED
+}
+
+enum TokenPurpose {
+  PASSWORD_RESET
+  EMAIL_VERIFY
+}
+
+// ---------------------------------------------------------------------------
+// Identity
+// ---------------------------------------------------------------------------
+
+model User {
+  id           String    @id @default(cuid())
+  name         String?
+  email        String    @unique
+  // Nullable: an account created through Google sign-in has no password. The
+  // login path treats a null hash as "password sign-in is not available" rather
+  // than as a failed comparison.
+  passwordHash String?
+  role         Role      @default(USER)
+  emailVerified Boolean  @default(false)
+  // Set when a Google account with a verified email is linked. Google asserts
+  // email ownership, so this is stronger evidence than our own emailed link and
+  // suppresses the verification nag for those users.
+  emailVerifiedVia String?
+  targetRole   String?
+  experience   String?
+  // Opt-in display name for the leaderboard (G-1).
+  showOnLeaderboard Boolean @default(false)
+  displayName   String?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  attempts        QuizAttempt[]
+  progress        ScenarioProgress[]
+  subscriptions   Subscription[]
+  orders          Order[]
+  bookmarks       Bookmark[]
+  reports         QuestionReport[]
+  ratings         QuestionRating[]
+  leaderboard     LeaderboardEntry[]
+  tokens          VerificationToken[]
+  accounts        OAuthAccount[]
+
+  // Addendum models
+  questionStates  UserQuestionState[]
+  dailyAttempts   DailyChallengeAttempt[]
+  streak          UserStreak?
+  settings        UserSettings?
+  dailyActivity   DailyActivity[]
+  waitlistEntries CareerWaitlist[]
+
+  @@index([email])
+  @@index([role])
+}
+
+// A-2 / A-3 single-use tokens for password reset and email verification.
+model VerificationToken {
+  id        String       @id @default(cuid())
+  userId    String
+  purpose   TokenPurpose
+  tokenHash String       @unique
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime     @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, purpose])
+  @@index([expiresAt])
+}
+
+/**
+ * A linked third-party identity.
+ *
+ * One user can have several (Google plus, later, others). The unique pair on
+ * provider and providerAccountId means an external identity maps to exactly one
+ * account, which is what stops one Google login silently attaching to two
+ * PipelinePrep users.
+ */
+model OAuthAccount {
+  id                String   @id @default(cuid())
+  // "google" today. Not a Prisma enum: adding a provider should be a data
+  // change, not a migration that locks the table.
+  provider          String
+  // The provider's own stable user id, not the email. Emails change; this does not.
+  providerAccountId String
+  userId            String
+  // Kept for display and for detecting an email change at the provider.
+  providerEmail     String?
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+  @@index([userId])
+}
+
+// ---------------------------------------------------------------------------
+// Content: topics, quizzes, questions
+// ---------------------------------------------------------------------------
+
+model Topic {
+  id          String   @id @default(cuid())
+  name        String   @unique
+  slug        String   @unique
+  description String
+  icon        String
+  // Ordering for the homepage grid.
+  position    Int      @default(0)
+  status      ContentStatus @default(PUBLISHED)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  quizzes   Quiz[]
+  questions Question[]
+  scenarios Scenario[]
+
+  @@index([slug])
+}
+
+model Quiz {
+  id          String        @id @default(cuid())
+  topicId     String
+  title       String
+  slug        String        @unique
+  description String?
+  difficulty  Difficulty    @default(MEDIUM)
+  isPremium   Boolean       @default(true)
+  status      ContentStatus @default(DRAFT)
+  tags        String[]      @default([])
+  timeLimitSec Int?
+  // A quiz is a "bank" in the addendum's vocabulary: keyed by topic + level.
+  // Null for legacy/standalone quizzes, which are excluded from the bank grid.
+  level       BankLevel?
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+
+  topic    Topic         @relation(fields: [topicId], references: [id], onDelete: Cascade)
+  questions Question[]
+  attempts  QuizAttempt[]
+
+  @@index([topicId])
+  @@index([status])
+  @@index([slug])
+  @@index([level])
+}
+
+model Question {
+  id          String     @id @default(cuid())
+  quizId      String?
+  topicId     String
+  text        String
+  // Ordered list of option strings (4 or 5 typically).
+  options     String[]
+  // Zero-based indexes into `options`.
+  correctOptions Int[]
+  explanation String
+  difficulty  Difficulty @default(MEDIUM)
+  // "interview" lives here per the PRD tagging model.
+  tags        String[]   @default([])
+  status      ContentStatus @default(PUBLISHED)
+  // Ordering within a quiz. null for loose (practice/interview) questions.
+  position    Int        @default(0)
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+
+  quiz      Quiz?      @relation(fields: [quizId], references: [id], onDelete: Cascade)
+  topic     Topic      @relation(fields: [topicId], references: [id], onDelete: Cascade)
+  bookmarks Bookmark[]
+  reports   QuestionReport[]
+  ratings   QuestionRating[]
+
+  userStates       UserQuestionState[]
+  dailyChallenges    DailyChallenge[]
+
+  @@index([quizId])
+  @@index([topicId])
+  @@index([status])
+}
+
+model QuizAttempt {
+  id       String   @id @default(cuid())
+  userId   String
+  quizId   String
+  score    Int
+  total    Int
+  duration Int
+  answers  Json
+  source   AttemptSource @default(QUIZ)
+  // Which practice mode produced this attempt (addendum §2A).
+  mode     PracticeMode @default(BANK)
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  quiz Quiz @relation(fields: [quizId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt])
+  @@index([quizId])
+  @@index([userId, mode])
+}
+
+/**
+ * Per-user state for a question. Powers "seen" and "mastered" counts, the
+ * Revision and Practice Mistakes modes, and Focus Areas weak-topic detection.
+ */
+model UserQuestionState {
+  id                  String   @id @default(cuid())
+  userId              String
+  questionId          String
+  timesSeen           Int      @default(0)
+  timesCorrect        Int      @default(0)
+  consecutiveCorrect  Int      @default(0)
+  lastAnsweredAt      DateTime?
+  isBookmarked        Boolean  @default(false)
+  isHard              Boolean  @default(false)
+  mastered            Boolean  @default(false)
+  updatedAt           DateTime @updatedAt
+
+  user     User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  question Question @relation(fields: [questionId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, questionId])
+  @@index([userId, isBookmarked])
+  @@index([userId, isHard])
+  @@index([userId, mastered])
+  @@index([userId, lastAnsweredAt])
+}
+
+/** One question (and optional scenario) per calendar date, global to all users. */
+model DailyChallenge {
+  date       DateTime @unique @db.Date
+  questionId String
+  scenarioId String?
+  // Set when an admin or the nightly job picks the question explicitly.
+  pickedBy   String?
+
+  question Question  @relation(fields: [questionId], references: [id], onDelete: Cascade)
+  scenario Scenario? @relation(fields: [scenarioId], references: [id], onDelete: SetNull)
+
+  attempts  DailyChallengeAttempt[]
+
+  @@index([date])
+}
+
+/// One row per user per date: the Daily Challenge cannot be retaken.
+model DailyChallengeAttempt {
+  id             String   @id @default(cuid())
+  userId         String
+  date           DateTime @db.Date
+  selectedOption Int
+  isCorrect      Boolean
+  createdAt      DateTime @default(now())
+
+  user         User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  challenge    DailyChallenge  @relation(fields: [date], references: [date], onDelete: Cascade)
+
+  @@unique([userId, date])
+  @@index([date])
+}
+
+model UserStreak {
+  id             String   @id @default(cuid())
+  userId         String   @unique
+  current        Int      @default(0)
+  longest        Int      @default(0)
+  activeDays     Int      @default(0)
+  lastActiveDate DateTime? @db.Date
+  updatedAt      DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model UserSettings {
+  id         String   @id @default(cuid())
+  userId     String   @unique
+  dailyGoal  Int      @default(10)
+  theme      Theme    @default(DARK)
+  /// IANA timezone, e.g. "Asia/Kolkata". Decides what "today" means.
+  timezone   String   @default("Asia/Kolkata")
+  updatedAt  DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+/// One row per user per date: questions answered that day.
+model DailyActivity {
+  id               String   @id @default(cuid())
+  userId           String
+  date             DateTime @db.Date
+  questionsAnswered Int     @default(0)
+  updatedAt        DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, date])
+  @@index([userId, date])
+}
+
+model Bookmark {
+  id         String   @id @default(cuid())
+  userId     String
+  questionId String
+  createdAt  DateTime @default(now())
+
+  user     User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  question Question @relation(fields: [questionId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, questionId])
+}
+
+model QuestionReport {
+  id         String       @id @default(cuid())
+  userId     String
+  questionId String
+  reason     ReportReason @default(OTHER)
+  details    String?
+  status     ReportStatus @default(OPEN)
+  createdAt  DateTime     @default(now())
+  resolvedAt DateTime?
+
+  user     User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  question Question @relation(fields: [questionId], references: [id], onDelete: Cascade)
+
+  @@index([status])
+  @@index([userId])
+}
+
+model QuestionRating {
+  id         String   @id @default(cuid())
+  userId     String
+  questionId String
+  rating     Int
+  createdAt  DateTime @default(now())
+
+  user     User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  question Question @relation(fields: [questionId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, questionId])
+  @@index([questionId])
+}
+
+// ---------------------------------------------------------------------------
+// Content: scenarios
+// ---------------------------------------------------------------------------
+
+model Scenario {
+  id          String     @id @default(cuid())
+  topicId     String
+  title       String
+  slug        String     @unique
+  summary     String
+  // Long-form context shown before step 1.
+  context     String
+  symptoms    String
+  environment String
+  difficulty  Difficulty @default(MEDIUM)
+  isPremium   Boolean    @default(true)
+  status      ContentStatus @default(DRAFT)
+  tags        String[]   @default([])
+  // Post-step content (S-3).
+  rootCause   String?
+  fix         String?
+  prevention  String?
+  durationMin Int?
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+
+  topic    Topic             @relation(fields: [topicId], references: [id], onDelete: Cascade)
+  steps    ScenarioStep[]
+  progress ScenarioProgress[]
+
+  dailyChallenges DailyChallenge[]
+
+  @@index([topicId])
+  @@index([status])
+  @@index([slug])
+}
+
+model ScenarioStep {
+  id         String   @id @default(cuid())
+  scenarioId String
+  order      Int
+  // "What would you check next?"
+  prompt     String
+  // Optional multiple-choice checkpoints. Empty = free reveal step.
+  options    String[] @default([])
+  // Indexes into `options` that count as a good decision.
+  correctOptions Int[] @default([])
+  reasoning String
+  // [{ language, code, caption? }]
+  codeBlocks Json     @default("[]")
+  createdAt  DateTime @default(now())
+
+  scenario Scenario @relation(fields: [scenarioId], references: [id], onDelete: Cascade)
+
+  @@unique([scenarioId, order])
+  @@index([scenarioId])
+}
+
+model ScenarioProgress {
+  id          String    @id @default(cuid())
+  userId      String
+  scenarioId  String
+  currentStep Int       @default(0)
+  completedAt DateTime?
+  updatedAt   DateTime  @updatedAt
+
+  user     User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  scenario Scenario @relation(fields: [scenarioId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, scenarioId])
+  @@index([userId])
+}
+
+// ---------------------------------------------------------------------------
+// Monetisation
+// ---------------------------------------------------------------------------
+
+model Plan {
+  id           String  @id @default(cuid())
+  name         String  @unique
+  description  String?
+  durationDays Int
+  priceInr     Int
+  active       Boolean @default(true)
+  // Sort order on the pricing page.
+  position     Int     @default(0)
+  // A plan the founder can grant without payment (e.g. free tier = 0 days).
+  isFreeTier   Boolean @default(false)
+  // Pay-once access that never expires. `durationDays` is ignored when true.
+  lifetime     Boolean @default(false)
+  // Bullet points shown on the pricing card. Edited from /admin/plans so the
+  // wording of a plan can change without a deploy.
+  features     String[] @default([])
+  createdAt    DateTime @default(now())
+
+  orders        Order[]
+  subscriptions Subscription[]
+  coupons       CouponPlan[]
+}
+
+model Coupon {
+  id         String     @id @default(cuid())
+  code       String     @unique
+  type       CouponType
+  value      Int
+  validFrom  DateTime   @default(now())
+  validTo    DateTime?
+  maxUses    Int?
+  usedCount  Int        @default(0)
+  perUserLimit Int       @default(1)
+  active     Boolean    @default(true)
+  createdAt  DateTime   @default(now())
+
+  plans   CouponPlan[]
+  orders  Order[]
+}
+
+model CouponPlan {
+  couponId String
+  planId   String
+
+  coupon Coupon @relation(fields: [couponId], references: [id], onDelete: Cascade)
+  plan   Plan   @relation(fields: [planId], references: [id], onDelete: Cascade)
+
+  @@id([couponId, planId])
+}
+
+model Order {
+  id              String      @id @default(cuid())
+  userId          String
+  planId          String
+  couponId        String?
+  // Amount actually charged in paise after discount.
+  amount          Int
+  discount        Int         @default(0)
+  subtotal        Int
+  currency        String      @default("INR")
+  gatewayOrderId  String?     @unique
+  gatewayPaymentId String?    @unique
+  status          OrderStatus @default(CREATED)
+  invoiceNumber   String?     @unique
+  // GST breakdown in paise, populated on payment (P-6).
+  taxPaise        Int         @default(0)
+  refundedAt      DateTime?
+  notes           String?
+  createdAt       DateTime    @default(now())
+  updatedAt       DateTime    @updatedAt
+
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  plan   Plan   @relation(fields: [planId], references: [id])
+  coupon Coupon? @relation(fields: [couponId], references: [id])
+
+  @@index([userId, createdAt])
+  @@index([status])
+}
+
+model Subscription {
+  id        String             @id @default(cuid())
+  userId    String
+  planId    String
+  orderId   String?            @unique
+  startsAt  DateTime           @default(now())
+  expiresAt DateTime
+  status    SubscriptionStatus @default(ACTIVE)
+  // Who granted it: checkout, admin override, or free tier.
+  source    String             @default("checkout")
+  createdAt DateTime           @default(now())
+
+  user  User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  plan  Plan @relation(fields: [planId], references: [id])
+
+  @@index([userId, status])
+  @@index([expiresAt])
+}
+
+// Raw webhook payloads keyed by gateway event id, for idempotency (P-5).
+model WebhookEvent {
+  id          String   @id @default(cuid())
+  gateway     String
+  eventId     String
+  eventType   String
+  payload     Json
+  processedAt DateTime @default(now())
+  error       String?
+
+  @@unique([gateway, eventId])
+}
+
+// ---------------------------------------------------------------------------
+// Gamification + ops
+// ---------------------------------------------------------------------------
+
+model LeaderboardEntry {
+  id        String            @id @default(cuid())
+  userId    String
+  period    LeaderboardPeriod
+  // Denormalised so ranking queries never need a join over attempts.
+  totalScore Int
+  quizzesCompleted Int
+  accuracyBps Int
+  periodStart DateTime
+  updatedAt DateTime          @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, period, periodStart])
+  @@index([period, totalScore])
+}
+
+model ContactMessage {
+  id        String   @id @default(cuid())
+  name      String
+  email     String
+  subject   String?
+  message   String
+  handled   Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  @@index([handled])
+}
+
+// ---------------------------------------------------------------------------
+// Career Tools (teaser only, behind a feature flag)
+// ---------------------------------------------------------------------------
+
+/**
+ * Waitlist interest in the future Career Tools feature set.
+ *
+ * Deliberately stores no resume content: the teaser collects interest only, and
+ * the product must not collect or upload resumes at this stage.
+ */
+model CareerWaitlist {
+  id        String   @id @default(cuid())
+  userId    String?
+  email     String
+  features  CareerFeature[]
+  source    WaitlistSource
+  createdAt DateTime @default(now())
+  // Set when the launch email is sent; the unsubscribe link clears it.
+  unsubscribedAt DateTime?
+
+  user User? @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  // One row per email, so a repeat signup updates rather than duplicates.
+  @@unique([email])
+  @@index([source])
+  @@index([createdAt])
+}
+
+/** Funnel events for the teaser, surfaced in the admin panel. */
+model CareerTeaserEvent {
+  id        String          @id @default(cuid())
+  type      WaitlistEvent
+  userId    String?
+  source    WaitlistSource?
+  feature   CareerFeature?
+  createdAt DateTime        @default(now())
+
+  @@index([type])
+  @@index([createdAt])
+}
+
+// Single-row table for operational toggles (e.g. disable checkout in test mode).
+model Setting {
+  key       String   @id
+  value     String
+  updatedAt DateTime @updatedAt
+}

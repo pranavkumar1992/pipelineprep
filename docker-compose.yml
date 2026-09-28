@@ -1,0 +1,43 @@
+# PipelinePrep - local development stack.
+# For production on a single EC2 instance, see docs/AWS-DEPLOY.md.
+
+services:
+  db:
+    image: postgres:16-alpine
+    container_name: pipelineprep-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: pipelineprep
+      POSTGRES_PASSWORD: pipelineprep
+      POSTGRES_DB: pipelineprep
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U pipelineprep -d pipelineprep"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    container_name: pipelineprep-redis
+    restart: unless-stopped
+    command: ["redis-server", "--appendonly", "yes"]
+    ports:
+      - "6379:6379"
+    volumes:
+      - redisdata:/data
+
+  mailhog:
+    image: mailhog/mailhog:latest
+    container_name: pipelineprep-mail
+    restart: unless-stopped
+    ports:
+      - "1025:1025"
+      - "8025:8025"
+
+volumes:
+  pgdata:
+  redisdata:

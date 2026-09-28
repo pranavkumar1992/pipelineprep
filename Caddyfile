@@ -1,0 +1,36 @@
+# PipelinePrep — TLS termination and reverse proxy.
+#
+# Caddy obtains and renews the certificate automatically over ACME once the
+# domain resolves to this host and ports 80/443 are reachable. There is no
+# renewal to schedule and no expiry to chase.
+#
+# Sizing note: the default Caddy buffers responses up to 10 MB, which is plenty
+# for a Next.js app that serves HTML and JSON. If you add file uploads later,
+# raise `request_body` here rather than assuming the default is unlimited.
+
+pipelineprep.in, www.pipelineprep.in {
+	encode zstd gzip
+
+	# The app writes cookies with `secure` in production and the HSTS header is
+	# set in next.config.ts, so plain HTTP is only ever a hop on the way here.
+	@upgrade not header Connection *Upgrade*
+	replace @upgrade {
+		respond 308 https://{host}{uri}
+	}
+	reverse_proxy @upgrade app:3000
+
+	# Razorpay posts webhooks to this host from the public internet. No auth is
+	# possible here; the route verifies the signature against the raw body.
+	# Nothing to configure — just make sure the URL is registered in the
+	# Razorpay dashboard as https://pipelineprep.in/api/webhooks/razorpay
+
+	log {
+		output file /data/access.log {
+			roll_size 20mb
+			roll_keep 5
+		}
+	}
+}
+
+# The ACME HTTP-01 challenge must answer on port 80 for the bare domain even
+# before the certificate exists, otherwise the first renewal fails.

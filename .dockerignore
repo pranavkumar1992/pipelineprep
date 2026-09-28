@@ -1,0 +1,28 @@
+node_modules
+.next
+out
+build
+dist
+.git
+.gitignore
+Dockerfile
+docker-compose.yml
+.dockerignore
+README.md
+*.md
+.env
+.env.local
+.env.production
+npm-debug.log*
+coverage
+.vscode
+.idea
+
+# NOTE: prisma/migrations is deliberately NOT excluded.
+#
+# `prisma migrate deploy` resolves migration SQL by reading the migrations
+# directory off disk; it does not embed them in the Prisma client. Excluding
+# them (as this file previously did) produces an image that builds and starts
+# but then reports "No migration found in prisma/migrations" and leaves the
+# production schema empty. The Prisma schema itself is still required and is
+# copied in.

@@ -1,0 +1,38 @@
+# dependencies
+/node_modules
+/.pnp
+.pnp.js
+
+# next.js
+/.next/
+/out/
+next-env.d.ts
+
+# production
+/build
+
+# misc
+.DS_Store
+*.pem
+
+# debug
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# local env files
+#
+# Ignored as a family rather than listed one at a time: a new secrets file that
+# is not added here would otherwise be committed on the very first `git add -A`,
+# and these files hold the database password, AUTH_SECRET, the Razorpay secret
+# and the SES SMTP password. `.env.example` is the only one that belongs in the
+# repository, so it is re-included explicitly.
+.env*
+!.env.example
+
+# typescript
+*.tsbuildinfo
+
+# prisma local artefacts
+prisma/dev.db
+prisma/dev.db-journal

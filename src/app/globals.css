@@ -1,0 +1,359 @@
+@import "tailwindcss";
+
+@theme {
+  --color-ink-950: #060910;
+  --color-ink-900: #0a0f1a;
+  --color-ink-850: #0e1524;
+  --color-ink-800: #131c2e;
+  --color-ink-700: #1c2740;
+  --color-ink-600: #2a3854;
+
+  --color-brand-400: #38bdf8;
+  --color-brand-500: #0ea5e9;
+  --color-brand-600: #0284c7;
+
+  --color-mint-400: #34d399;
+  --color-amber-450: #fbbf24;
+  --color-rose-450: #fb7185;
+
+  /*
+   * Dark-theme muted ramp.
+   *
+   * Tailwind's stock `slate-500` (#62748e) reaches only 3.9:1 on this theme's
+   * surfaces, below the 4.5:1 AA threshold, and `slate-600`/`slate-700` are far
+   * worse at roughly 2.5:1 and 1.9:1 — those two are *darker* than the stock
+   * 500, so on a dark page they disappear. That affects the majority of the
+   * interface: card labels, footer text, the "Locked · N questions" state, the
+   * question counter.
+   *
+   * The three are re-pointed to the narrow band just above the stock
+   * `slate-400`, which is the last step that still reads as muted rather than as
+   * body copy. The ramp still ascends 500 -> 600 -> 700, and `slate-400` is left
+   * alone because it is heavily used as body text and already passes.
+   *
+   * Safe to redefine: `slate-500/600/700` appear only as `text-*` in this
+   * codebase, never as a background or border, so nothing else shifts.
+   */
+  --color-slate-500: #74849a;
+  --color-slate-600: #8296ad;
+  --color-slate-700: #94a3b8;
+
+  --font-mono: ui-monospace, "SF Mono", SFMono-Regular, "JetBrains Mono",
+    Menlo, Consolas, monospace;
+}
+
+@layer base {
+  :root {
+    color-scheme: dark;
+
+    /* Semantic surface/text tokens. Components use these rather than raw ink
+       values so the light theme only has to override a handful of variables. */
+    --pp-page: var(--color-ink-950);
+    --pp-surface: var(--color-ink-900);
+    --pp-surface-2: var(--color-ink-850);
+    --pp-text: #e2e8f0;
+    --pp-heading: #f8fafc;
+    --pp-muted: #94a3b8;
+    --pp-border: var(--color-ink-800);
+  }
+
+  /*
+   * Light theme.
+
+   * Tailwind v4 compiles utilities to variables (`text-white` becomes
+   * `var(--color-white)`, `text-slate-400` becomes `var(--color-slate-400)`), so
+   * the palette can be re-pointed at the variable level instead of rewriting
+   * several hundred literal class usages across the components.
+
+   * Two constraints shaped this:
+   *
+   *   1. This block must be UNLAYERED. `@theme` emits its variables into the
+   *      `theme` cascade layer, and layer order beats specificity, so anything
+   *      inside `@layer base` loses regardless of how specific the selector is.
+   *      That is why the first attempt silently did nothing.
+   *
+   *   2. The ramp is inverted, not merely lightened. `slate-400` is body text on
+   *      a dark page; the same role on a light page needs to be a mid grey, not
+   *      a light one. The values below therefore descend as the originals ascend.
+   *
+   * `white` and `black` are remapped too, because the components use
+   * `text-white` for headings and `text-ink-950` as button text on the accent
+   * fill. Both need inverting to stay readable.
+   */
+
+  html {
+    scroll-behavior: smooth;
+    -webkit-text-size-adjust: 100%;
+  }
+
+  body {
+    background-color: var(--pp-page);
+    color: var(--pp-text);
+    font-family:
+      -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue",
+      Arial, sans-serif;
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+  }
+
+  /* Visible focus ring everywhere, never removed. */
+  :focus-visible {
+    outline: 2px solid var(--color-brand-400);
+    outline-offset: 2px;
+    border-radius: 3px;
+  }
+
+  ::selection {
+    background-color: color-mix(in oklab, var(--color-brand-400) 35%, transparent);
+    color: #f8fafc;
+  }
+
+  /* Respect users who ask for less motion. */
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+      scroll-behavior: auto !important;
+    }
+  }
+}
+
+@layer components {
+  /* Subtle grid backdrop used behind the hero. */
+  .pp-grid {
+    background-image:
+      linear-gradient(to right, rgba(148, 163, 184, 0.06) 1px, transparent 1px),
+      linear-gradient(to bottom, rgba(148, 163, 184, 0.06) 1px, transparent 1px);
+    background-size: 56px 56px;
+    mask-image: radial-gradient(ellipse 80% 60% at 50% 0%, #000 40%, transparent 100%);
+  }
+
+  .pp-glow {
+    background: radial-gradient(
+      ellipse 60% 50% at 50% 0%,
+      rgba(56, 189, 248, 0.14),
+      transparent 70%
+    );
+  }
+
+  .pp-prose {
+    color: #cbd5e1;
+    line-height: 1.75;
+  }
+  .pp-prose h2 {
+    color: #f1f5f9;
+    font-size: 1.125rem;
+    font-weight: 650;
+    margin-top: 2rem;
+    margin-bottom: 0.625rem;
+  }
+  .pp-prose h3 {
+    color: #e2e8f0;
+    font-size: 1rem;
+    font-weight: 600;
+    margin-top: 1.5rem;
+    margin-bottom: 0.5rem;
+  }
+  .pp-prose p {
+    margin-bottom: 0.875rem;
+  }
+  .pp-prose ul,
+  .pp-prose ol {
+    margin-bottom: 0.875rem;
+    padding-left: 1.25rem;
+  }
+  .pp-prose ul {
+    list-style: disc;
+  }
+  .pp-prose ol {
+    list-style: decimal;
+  }
+  .pp-prose li {
+    margin-bottom: 0.375rem;
+  }
+  .pp-prose strong {
+    color: #f1f5f9;
+    font-weight: 600;
+  }
+  .pp-prose code {
+    font-family: var(--font-mono);
+    font-size: 0.85em;
+    background: rgba(148, 163, 184, 0.14);
+    padding: 0.125rem 0.375rem;
+    border-radius: 4px;
+    color: #7dd3fc;
+  }
+  .pp-prose pre {
+    margin-bottom: 1rem;
+    overflow-x: auto;
+  }
+  .pp-prose pre code {
+    background: transparent;
+    padding: 0;
+    color: inherit;
+  }
+  .pp-prose a {
+    color: var(--color-brand-400);
+    text-decoration: underline;
+    text-underline-offset: 2px;
+  }
+  .pp-prose blockquote {
+    border-left: 3px solid var(--color-ink-600);
+    padding-left: 1rem;
+    color: #94a3b8;
+    margin-bottom: 1rem;
+  }
+}
+
+/*
+ * Light theme variable remap.
+ *
+ * Deliberately outside every cascade layer. Tailwind v4 puts `@theme` output in
+ * the `theme` layer, and an earlier attempt to do this inside `@layer base` was
+ * silently overridden: layer order outranks selector specificity, so the more
+ * specific `[data-theme="light"]` selector still lost.
+ *
+ * The values invert rather than merely lighten. In dark mode the ramp runs light
+ * text on dark surfaces, so `slate-400` is near-white and `slate-700` is a dark
+ * border. On a light page those roles swap: body text becomes a mid grey and
+ * borders become pale.
+ */
+[data-theme="light"] {
+  color-scheme: light;
+
+  /* Surfaces: page through to the most inset panel. */
+  --color-ink-950: #f8fafc;
+  --color-ink-900: #ffffff;
+  --color-ink-850: #f1f5f9;
+  --color-ink-800: #e2e8f0;
+  --color-ink-700: #cbd5e1;
+  --color-ink-600: #94a3b8;
+
+  /*
+   * Foregrounds. `white` is the components' heading colour and has to become the
+   * darkest ink; `black` is the inverse.
+   */
+  --color-white: #0f172a;
+  --color-black: #ffffff;
+
+  --color-slate-100: #1e293b;
+  --color-slate-200: #334155;
+  --color-slate-300: #334155;
+  --color-slate-400: #475569;
+  --color-slate-500: #64748b;
+  --color-slate-600: #94a3b8;
+  --color-slate-700: #cbd5e1;
+  --color-slate-800: #e2e8f0;
+
+  /*
+   * Accent. Sky-400 is 2.9:1 on white, which fails WCAG AA for body text, so it
+   * is darkened to #0369a1 (5.1:1). Same reasoning for the status hues.
+   */
+  --color-brand-400: #0369a1;
+  --color-brand-500: #075985;
+  --color-brand-600: #0c4a6e;
+
+  /* Status colours, darkened for contrast on white. */
+  --color-mint-400: #047857;
+  --color-amber-450: #92400e;
+  --color-rose-450: #be123c;
+  --color-rose-400: #be123c;
+  --color-rose-500: #be123c;
+  --color-rose-300: #9f1239;
+  --color-rose-200: #9f1239;
+
+  /*
+   * The 100/200/300 status steps were missed by the original remap, and they are
+   * the ones components actually use for status text: `text-amber-100` on the
+   * email-confirmation heading, `text-amber-200` on warnings, `text-amber-300`
+   * on the difficulty badges. Stock values are near-white, so on a light page
+   * they render at roughly 1.1:1 — effectively invisible.
+   *
+   * Mapped so the lightest step is the darkest ink, mirroring how the slate ramp
+   * is inverted above. `amber-450` stays the fill colour; these are the text
+   * colours that sit on its 10% tint.
+   */
+  --color-amber-100: #78350f;
+  --color-amber-200: #92400e;
+  --color-amber-300: #92400e;
+
+  --color-mint-200: #065f46;
+  --color-mint-300: #047857;
+  --color-emerald-300: #047857;
+
+  /*
+   * Tertiary text ramp. The default remap left `slate-500` at 4.3:1 and
+   * `slate-600` at 2.3:1 on white, both under the 4.5:1 AA threshold for the
+   * small mono labels used throughout the UI. These are the darkest values that
+   * still read as muted rather than as body copy.
+   */
+  --color-slate-500: #55637a;
+  --color-slate-600: #4a5568;
+
+  /* Semantic aliases used by `body` and the shared components. */
+  --pp-page: #f8fafc;
+  --pp-surface: #ffffff;
+  --pp-surface-2: #f1f5f9;
+  --pp-text: #1e293b;
+  --pp-heading: #0f172a;
+  --pp-muted: #64748b;
+  --pp-border: #e2e8f0;
+}
+
+/*
+ * Backdrop treatments that hardcoded dark translucency. Without this the hero
+ * grid and glow stay tuned for a black page and read as a smudge on white.
+ */
+[data-theme="light"] .pp-grid {
+  background-image:
+    linear-gradient(to right, rgba(15, 23, 42, 0.06) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(15, 23, 42, 0.06) 1px, transparent 1px);
+}
+
+[data-theme="light"] .pp-glow {
+  background: radial-gradient(
+    ellipse 60% 50% at 50% 0%,
+    rgba(2, 132, 199, 0.1),
+    transparent 70%
+  );
+}
+
+[data-theme="light"] .pp-prose {
+  color: #334155;
+}
+[data-theme="light"] .pp-prose h2,
+[data-theme="light"] .pp-prose h3,
+[data-theme="light"] .pp-prose strong {
+  color: #0f172a;
+}
+[data-theme="light"] .pp-prose code {
+  background: rgba(15, 23, 42, 0.06);
+  color: #0369a1;
+}
+[data-theme="light"] .pp-prose blockquote {
+  color: #64748b;
+}
+
+/* Long-form code blocks: readable, horizontally scrollable, no layout shift. */
+.pp-code {
+  font-family: var(--font-mono);
+  font-size: 0.8125rem;
+  line-height: 1.7;
+  tab-size: 2;
+}
+
+.pp-scroll-x {
+  overflow-x: auto;
+  scrollbar-width: thin;
+  scrollbar-color: var(--color-ink-600) transparent;
+}
+.pp-scroll-x::-webkit-scrollbar {
+  height: 8px;
+}
+.pp-scroll-x::-webkit-scrollbar-thumb {
+  background: var(--color-ink-600);
+  border-radius: 4px;
+}
