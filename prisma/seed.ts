@@ -27,8 +27,15 @@ if (!connectionString) {
   process.exit(1);
 }
 
+const isProduction = process.env.NODE_ENV === "production";
+
 const prisma = new PrismaClient({
-  adapter: new PrismaPg({ connectionString }),
+  adapter: new PrismaPg({
+    connectionString,
+    options: {
+      ssl: isProduction ? { rejectUnauthorized: false } : undefined,
+    },
+  }),
 });
 
 const TOPICS: SeedTopic[] = [
