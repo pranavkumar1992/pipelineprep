@@ -19,14 +19,13 @@ function createPrismaClient() {
   }
   // The pg Node.js driver does not parse `sslmode` from the connection URL.
   // RDS requires SSL (pg_hba.conf rejects unencrypted connections), so we
-  // enable it explicitly in production.
+  // pass a pg.PoolConfig with ssl enabled instead of a bare connection string.
   const isProduction = process.env.NODE_ENV === "production";
-  const adapter = new PrismaPg({
-    connectionString,
-    options: {
-      ssl: isProduction ? { rejectUnauthorized: false } : undefined,
-    },
-  });
+  const adapter = new PrismaPg(
+    isProduction
+      ? { connectionString, ssl: { rejectUnauthorized: false } }
+      : connectionString
+  );
   return new PrismaClient({
     adapter,
     log:
