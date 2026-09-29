@@ -15,15 +15,18 @@ echo "[entrypoint] waiting for postgres…"
 
 # Bounded wait rather than an infinite loop, so a bad DATABASE_URL surfaces as a
 # failed container rather than a silently restarting one.
+#
+# We test TCP connectivity with wget rather than `require('pg')` because the
+# Next.js standalone output only traces directly-imported modules — pg is an
+# internal Prisma dependency and is not in the runtime node_modules.
+DB_HOST=$(echo "$DATABASE_URL" | sed -E 's|.*@([^:/]+).*|\1|')
+DB_PORT=$(echo "$DATABASE_URL" | sed -E 's|.*:([0-9]+)/.*|\1|')
 attempt=0
-until node -e "
-  const { Client } = require('pg');
-  const c = new Client({ connectionString: process.env.DATABASE_URL });
-  c.connect().then(() => c.end()).then(() => process.exit(0)).catch(() => process.exit(1));
-" 2>/dev/null; do
+until wget -qO /dev/null --timeout=2 "http://${DB_HOST}:${DB_PORT}" 2>/dev/null || \
+      wget -qO /dev/null --timeout=2 "http://${DB_HOST}:${DB_PORT}" 2>&1 | grep -q "error getting response"; do
   attempt=$((attempt + 1))
   if [ "$attempt" -ge 30 ]; then
-    echo "[entrypoint] database unreachable after 30 attempts; giving up." >&2
+    echo "[entrypoint] database unreachable at ${DB_HOST}:${DB_PORT} after 30 attempts; giving up." >&2
     exit 1
   fi
   sleep 2
@@ -37,21 +40,20 @@ npx prisma migrate deploy
 # Seed only on a genuinely empty database. The seed is idempotent and
 # upsert-based, so re-running it is harmless, but skipping it when content
 # already exists keeps every boot fast and avoids touching live rows.
+#
+# We use prisma's own query capability rather than require('pg'), since the
+# standalone Next.js build doesn't include pg in its traced modules.
 echo "[entrypoint] checking whether content needs seeding…"
-NEEDS_SEED=$(node -e "
-  const { Client } = require('pg');
-  const c = new Client({ connectionString: process.env.DATABASE_URL });
-  c.connect()
-    .then(() => c.query(\"SELECT to_regclass('public.\\\"Topic\\\"') IS NOT NULL AS t, (SELECT count(*) FROM \\\"Topic\\\") AS n\"))
-    .then(r => { const t = r.rows[0].t, n = Number(r.rows[0].n); console.log(!t || n === 0 ? 'yes' : 'no'); return c.end(); })
-    .catch(() => { console.log('yes'); });
-")
+TOPIC_COUNT=$(npx prisma db execute --stdin <<'SQL' 2>/dev/null | grep -oE '[0-9]+' | head -1
+SELECT count(*) FROM "Topic";
+SQL
+)
 
-if [ "$NEEDS_SEED" = "yes" ]; then
+if [ -z "$TOPIC_COUNT" ] || [ "$TOPIC_COUNT" = "0" ]; then
   echo "[entrypoint] empty database — seeding content (first boot only)…"
   npx prisma db seed
 else
-  echo "[entrypoint] content present — skipping seed."
+  echo "[entrypoint] content present ($TOPIC_COUNT topics) — skipping seed."
 fi
 
 echo "[entrypoint] starting server on :${PORT:-3000}"
