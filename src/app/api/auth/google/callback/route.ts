@@ -21,23 +21,24 @@ import { sendWelcomeEmail } from "@/lib/email";
  */
 export async function GET(request: Request): Promise<NextResponse> {
   const url = new URL(request.url);
+  const origin = env.siteUrl();
 
   const failure = (reason: string, detail?: unknown) => {
     if (detail) console.error(`[google-oauth] ${reason}:`, detail);
     return NextResponse.redirect(
-      new URL(`/login?error=google-failed`, url.origin),
+      new URL(`/login?error=google-failed`, origin),
     );
   };
 
   if (!env.googleEnabled) {
     return NextResponse.redirect(
-      new URL("/login?error=google-not-configured", url.origin),
+      new URL("/login?error=google-not-configured", origin),
     );
   }
 
   // The user declined consent. Not an error, just a return trip.
   if (url.searchParams.get("error")) {
-    return NextResponse.redirect(new URL("/login", url.origin));
+    return NextResponse.redirect(new URL("/login", origin));
   }
 
   const code = url.searchParams.get("code");
@@ -74,7 +75,7 @@ export async function GET(request: Request): Promise<NextResponse> {
      * over attempts, progress and any active subscription.
      */
     return NextResponse.redirect(
-      new URL("/login?error=google-account-exists", url.origin),
+      new URL("/login?error=google-account-exists", origin),
     );
   }
 
@@ -114,5 +115,5 @@ export async function GET(request: Request): Promise<NextResponse> {
     }
   }
 
-  return NextResponse.redirect(new URL(verifiedState.next, url.origin));
+  return NextResponse.redirect(new URL(verifiedState.next, origin));
 }

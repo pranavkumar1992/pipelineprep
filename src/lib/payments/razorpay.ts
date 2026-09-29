@@ -47,21 +47,26 @@ export async function createGatewayOrder(options: {
   const rzp = await getRazorpay();
   if (!rzp) return null;
 
-  const order = await rzp.orders.create({
-    amount: options.amountPaise,
-    currency: "INR",
-    // Razorpay caps receipts at 40 characters.
-    receipt: options.receipt.slice(0, 40),
-    notes: options.notes ?? {},
-  });
+  try {
+    const order = await rzp.orders.create({
+      amount: options.amountPaise,
+      currency: "INR",
+      // Razorpay caps receipts at 40 characters.
+      receipt: options.receipt.slice(0, 40),
+      notes: options.notes ?? {},
+    });
 
-  // Razorpay types these fields loosely; narrow them for our own use.
-  return {
-    id: String(order.id),
-    amount: Number(order.amount),
-    currency: String(order.currency),
-    receipt: String(order.receipt),
-  };
+    // Razorpay types these fields loosely; narrow them for our own use.
+    return {
+      id: String(order.id),
+      amount: Number(order.amount),
+      currency: String(order.currency),
+      receipt: String(order.receipt),
+    };
+  } catch (error) {
+    console.error("[razorpay] order creation failed:", error);
+    return null;
+  }
 }
 
 export async function fetchGatewayOrder(

@@ -14,9 +14,11 @@ import { LIMITS, rateLimit } from "@/lib/rate-limit";
 export async function GET(request: Request): Promise<NextResponse> {
   const url = new URL(request.url);
 
+  const origin = env.siteUrl();
+
   if (!env.googleEnabled) {
     return NextResponse.redirect(
-      new URL("/login?error=google-not-configured", url.origin),
+      new URL("/login?error=google-not-configured", origin),
     );
   }
 
@@ -24,7 +26,7 @@ export async function GET(request: Request): Promise<NextResponse> {
   const limit = rateLimit(`google-oauth:${ip}`, LIMITS.login.limit, LIMITS.login.window);
   if (!limit.ok) {
     return NextResponse.redirect(
-      new URL("/login?error=too-many-attempts", url.origin),
+      new URL("/login?error=too-many-attempts", origin),
     );
   }
 

@@ -145,6 +145,14 @@ export async function startCheckoutAction(
 
   if (!result.ok) return { ok: false, error: result.error };
 
+  if (!result.gatewayOrderId) {
+    return {
+      ok: false,
+      error:
+        "Payment gateway returned an error. Please verify your Razorpay API key and secret, or try again shortly.",
+    };
+  }
+
   revalidatePath("/pricing");
 
   return {

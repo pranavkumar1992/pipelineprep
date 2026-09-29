@@ -112,35 +112,36 @@ export function CheckoutForm({
     setPaying(true);
     setError(null);
 
-    const started = await startCheckoutAction({
-      planId,
-      couponCode: coupon?.ok ? coupon.code : null,
-    });
+    try {
+      const started = await startCheckoutAction({
+        planId,
+        couponCode: coupon?.ok ? coupon.code : null,
+      });
 
-    if (!started.ok) {
-      setError(started.error);
-      setPaying(false);
-      return;
-    }
+      if (!started.ok) {
+        setError(started.error);
+        setPaying(false);
+        return;
+      }
 
-    orderIdRef.current = started.orderId;
+      orderIdRef.current = started.orderId;
 
-    // No gateway configured (local dev / before keys are set): route the user
-    // to a clear message instead of failing silently.
-    if (!started.razorpayKeyId || !started.gatewayOrderId) {
-      setPaying(false);
-      setError(
-        "Checkout is not available right now. Please try again shortly, or contact support for help.",
-      );
-      return;
-    }
+      // No gateway configured (local dev / before keys are set): route the user
+      // to a clear message instead of failing silently.
+      if (!started.razorpayKeyId || !started.gatewayOrderId) {
+        setPaying(false);
+        setError(
+          "Checkout is not available right now. Please try again shortly, or contact support for help.",
+        );
+        return;
+      }
 
-    const loaded = await loadRazorpay();
-    if (!loaded) {
-      setPaying(false);
-      setError("Could not load the payment window. Check your connection.");
-      return;
-    }
+      const loaded = await loadRazorpay();
+      if (!loaded) {
+        setPaying(false);
+        setError("Could not load the payment window. Check your connection.");
+        return;
+      }
 
     const RazorpayCtor = (
       window as unknown as {
@@ -206,7 +207,15 @@ export function CheckoutForm({
     });
 
     rz.open();
+  } catch (err) {
+    setPaying(false);
+    setError(
+      err instanceof Error
+        ? err.message
+        : "Failed to open checkout. Please try again.",
+    );
   }
+}
 
   if (plans.length === 0) {
     return (
