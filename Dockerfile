@@ -19,6 +19,9 @@ WORKDIR /app
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 # Prisma schema is required for client generation.
+# prisma.config.ts calls env("DATABASE_URL") — provide a dummy so `generate`
+# can load the config without a real DB. It only reads the schema, never connects.
+ENV DATABASE_URL="postgresql://dummy:dummy@localhost:5432/dummy"
 RUN npx prisma generate
 ENV NEXT_TELEMETRY_DISABLED=1
 # Standalone output keeps the runtime image small.
