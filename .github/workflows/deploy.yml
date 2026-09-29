@@ -72,23 +72,20 @@ jobs:
     needs: build-and-push
     runs-on: ubuntu-latest
     steps:
-      - name: Configure AWS credentials (OIDC)
-        uses: aws-actions/configure-aws-credentials@v4
-        with:
-          role-to-assume: ${{ secrets.AWS_ROLE_TO_ASSUME }}
-          aws-region: ${{ secrets.AWS_REGION }}
-
       - name: Deploy over SSH
         uses: appleboy/ssh-action@v1.2.0
+        env:
+          # Construct the full ECR image URI here rather than receiving it from
+          # the build job output — GitHub masks outputs that contain secrets
+          # (the ECR registry embeds the account ID), rendering them empty.
+          DEPLOY_IMAGE: ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ secrets.AWS_REGION }}.amazonaws.com/pipelineprep:${{ github.sha }}
         with:
           host: ${{ secrets.EC2_HOST }}
           username: deploy
           key: ${{ secrets.EC2_SSH_PRIVATE_KEY }}
-          # Pin the host key instead of disabling verification, so a DNS/IP
-          # spoof of EC2_HOST cannot MITM the deploy.
           fingerprint: ${{ secrets.EC2_SSH_KNOWN_HOSTS }}
-          envs: IMAGE_TAG
+          envs: DEPLOY_IMAGE
           script: |
             set -e
             cd ~/app
-            IMAGE_TAG="${{ needs.build-and-push.outputs.image }}" ./deploy.sh
+            IMAGE_TAG="$DEPLOY_IMAGE" ./deploy.sh
