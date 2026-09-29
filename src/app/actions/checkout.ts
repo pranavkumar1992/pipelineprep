@@ -95,7 +95,7 @@ export type CheckoutState =
 
 const checkoutSchema = z.object({
   planId: z.string().min(1),
-  couponCode: z.string().trim().max(40).optional(),
+  couponCode: z.string().trim().max(40).nullable().optional(),
 });
 
 /**
