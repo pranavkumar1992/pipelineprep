@@ -44,10 +44,25 @@ npx prisma migrate deploy
 # We use prisma's own query capability rather than require('pg'), since the
 # standalone Next.js build doesn't include pg in its traced modules.
 echo "[entrypoint] checking whether content needs seeding…"
-TOPIC_COUNT=$(npx prisma db execute --stdin <<'SQL' 2>/dev/null | grep -oE '[0-9]+' | head -1
-SELECT count(*) FROM "Topic";
-SQL
-)
+TOPIC_COUNT=$(node -e '
+  const { Pool } = require("pg");
+  const url = new URL(process.env.DATABASE_URL);
+  const p = new Pool({
+    user: decodeURIComponent(url.username),
+    password: decodeURIComponent(url.password),
+    host: url.hostname,
+    port: url.port ? parseInt(url.port, 10) : 5432,
+    database: url.pathname.replace(/^\//, ""),
+    ssl: { rejectUnauthorized: false }
+  });
+  p.query("SELECT count(*) FROM \"Topic\"").then(r => {
+    console.log(r.rows[0].count);
+    return p.end();
+  }).catch(() => {
+    console.log("0");
+    return p.end();
+  });
+' 2>/dev/null)
 
 if [ -z "$TOPIC_COUNT" ] || [ "$TOPIC_COUNT" = "0" ]; then
   echo "[entrypoint] empty database — seeding content (first boot only)…"

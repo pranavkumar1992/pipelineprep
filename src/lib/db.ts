@@ -1,4 +1,5 @@
 import "dotenv/config";
+import { Pool } from "pg";
 import { PrismaPg } from "@prisma/adapter-pg";
 import { PrismaClient } from "@prisma/client";
 
@@ -17,15 +18,27 @@ function createPrismaClient() {
       "DATABASE_URL is not set. Copy .env.example to .env and fill it in.",
     );
   }
-  // The pg Node.js driver does not parse `sslmode` from the connection URL.
-  // RDS requires SSL (pg_hba.conf rejects unencrypted connections), so we
-  // pass a pg.PoolConfig with ssl enabled instead of a bare connection string.
+
   const isProduction = process.env.NODE_ENV === "production";
-  const adapter = new PrismaPg(
-    isProduction
-      ? { connectionString, ssl: { rejectUnauthorized: false } }
-      : connectionString
-  );
+  let pool: Pool;
+
+  if (isProduction) {
+    const url = new URL(connectionString);
+    const limit = url.searchParams.get("connection_limit");
+    pool = new Pool({
+      user: decodeURIComponent(url.username),
+      password: decodeURIComponent(url.password),
+      host: url.hostname,
+      port: url.port ? parseInt(url.port, 10) : 5432,
+      database: url.pathname.replace(/^\//, ""),
+      ssl: { rejectUnauthorized: false },
+      max: limit ? parseInt(limit, 10) : 5,
+    });
+  } else {
+    pool = new Pool({ connectionString });
+  }
+
+  const adapter = new PrismaPg(pool);
   return new PrismaClient({
     adapter,
     log:

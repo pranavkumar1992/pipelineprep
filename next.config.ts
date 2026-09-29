@@ -14,7 +14,7 @@ const nextConfig: NextConfig = {
    */
   output: "standalone",
 
-  serverExternalPackages: ["bcryptjs", "nodemailer", "razorpay", "papaparse"],
+  serverExternalPackages: ["bcryptjs", "nodemailer", "razorpay", "papaparse", "pg"],
   async headers() {
     return [
       {

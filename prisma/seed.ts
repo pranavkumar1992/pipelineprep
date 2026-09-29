@@ -21,6 +21,8 @@ import path from "node:path";
 import { config as loadEnv } from "dotenv";
 loadEnv({ path: path.join(process.cwd(), ".env") });
 
+import { Pool } from "pg";
+
 const connectionString = process.env.DATABASE_URL;
 if (!connectionString) {
   console.error("DATABASE_URL is not set. Cannot seed.");
@@ -28,13 +30,25 @@ if (!connectionString) {
 }
 
 const isProduction = process.env.NODE_ENV === "production";
+let pool: Pool;
+
+if (isProduction) {
+  const url = new URL(connectionString);
+  pool = new Pool({
+    user: decodeURIComponent(url.username),
+    password: decodeURIComponent(url.password),
+    host: url.hostname,
+    port: url.port ? parseInt(url.port, 10) : 5432,
+    database: url.pathname.replace(/^\//, ""),
+    ssl: { rejectUnauthorized: false },
+    max: 5,
+  });
+} else {
+  pool = new Pool({ connectionString });
+}
 
 const prisma = new PrismaClient({
-  adapter: new PrismaPg(
-    isProduction
-      ? { connectionString, ssl: { rejectUnauthorized: false } }
-      : connectionString
-  ),
+  adapter: new PrismaPg(pool),
 });
 
 const TOPICS: SeedTopic[] = [
