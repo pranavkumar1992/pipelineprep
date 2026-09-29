@@ -51,7 +51,12 @@ SQL
 
 if [ -z "$TOPIC_COUNT" ] || [ "$TOPIC_COUNT" = "0" ]; then
   echo "[entrypoint] empty database — seeding content (first boot only)…"
-  npx prisma db seed
+  if npx prisma db seed; then
+    echo "[entrypoint] seeding complete."
+  else
+    echo "[entrypoint] ⚠ seed failed (non-fatal). The app will start without demo content." >&2
+    echo "[entrypoint] You can seed manually later with: docker exec pipelineprep-app npx prisma db seed" >&2
+  fi
 else
   echo "[entrypoint] content present ($TOPIC_COUNT topics) — skipping seed."
 fi
