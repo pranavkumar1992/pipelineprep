@@ -83,9 +83,9 @@ jobs:
           host: ${{ secrets.EC2_HOST }}
           username: deploy
           key: ${{ secrets.EC2_SSH_PRIVATE_KEY }}
-          fingerprint: ${{ secrets.EC2_SSH_KNOWN_HOSTS }}
           envs: DEPLOY_IMAGE
           script: |
             set -e
             cd ~/app
             IMAGE_TAG="$DEPLOY_IMAGE" ./deploy.sh
+
