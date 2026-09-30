@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { ArrowRight, Check, Flame, Target, TrendingUp } from "lucide-react";
+import { ArrowRight, Check, Flame, Target, TrendingUp, Sparkles, Zap, Bot } from "lucide-react";
 import {
   getContentStats,
   getTopicsWithCounts,
@@ -11,6 +11,7 @@ import { isCareerToolsLive } from "@/lib/settings";
 import { ButtonLink } from "@/components/ui/button";
 import { AccessBadge, DifficultyBadge } from "@/components/ui/badges";
 import { CareerToolsCard } from "@/components/career-tools/career-tools-card";
+import { AiHeroShowcase } from "@/components/marketing/ai-hero-showcase";
 import { pluralize } from "@/lib/utils";
 import type { Metadata } from "next";
 
@@ -47,29 +48,32 @@ export default async function HomePage() {
         <div className="pp-grid absolute inset-0" aria-hidden="true" />
         <div className="pp-glow absolute inset-0" aria-hidden="true" />
 
-        <div className="relative mx-auto grid max-w-6xl items-center gap-14 px-4 py-16 sm:px-6 sm:py-20 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.05fr)] lg:gap-12 lg:py-24">
+        <div className="relative mx-auto grid max-w-6xl items-center gap-12 px-4 py-16 sm:px-6 sm:py-20 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.15fr)] lg:gap-10 lg:py-24">
           {/* Copy */}
           <div>
-            <p className="inline-flex items-center gap-2 rounded-full border border-ink-700 bg-ink-900/80 px-3 py-1 font-mono text-xs text-slate-400">
-              <span
-                className="h-1.5 w-1.5 rounded-full bg-mint-400"
-                aria-hidden="true"
-              />
-              {stats.questions} questions &middot; {stats.topics} topics &middot;{" "}
-              {stats.scenarios} incident walkthroughs &middot; AI Career Tools
-            </p>
+            <div className="inline-flex items-center gap-2 rounded-full border border-brand-400/30 bg-brand-400/10 px-3.5 py-1 text-xs font-mono text-brand-300 backdrop-blur-md">
+              <span className="relative flex h-2 w-2">
+                <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-brand-400 opacity-75" />
+                <span className="relative inline-flex h-2 w-2 rounded-full bg-brand-400" />
+              </span>
+              <span>Next-Gen DevOps AI Studio</span>
+              <span className="text-slate-600">&middot;</span>
+              <span className="text-slate-300">Live Incident &amp; Prep Engine</span>
+            </div>
 
-            <h1 className="mt-6 text-balance text-4xl font-bold leading-[1.05] tracking-tight text-white sm:text-5xl lg:text-6xl">
-              The DevOps interview
+            <h1 className="mt-6 text-balance text-4xl font-bold leading-[1.08] tracking-tight text-white sm:text-5xl lg:text-6xl">
+              The AI-Powered
               <br />
-              prep platform that{" "}
-              <span className="text-brand-400">explains</span>.
+              <span className="bg-gradient-to-r from-brand-400 via-sky-300 to-mint-400 bg-clip-text text-transparent">
+                DevOps &amp; SRE
+              </span>{" "}
+              Interview Platform.
             </h1>
 
             <p className="mt-6 max-w-xl text-pretty text-base leading-relaxed text-slate-300 sm:text-lg">
-              Quizzes, incident walkthroughs, weak-area tracking and a daily
-              streak &mdash; in one place. Every answer comes with the reasoning
-              behind it, so you learn the decision rather than memorise the letter.
+              Simulate real-world cloud outages, diagnose weak areas with adaptive AI
+              question banks, and audit your resume against live job descriptions. Master the
+              architectural decisions behind every single failure.
             </p>
 
             {/* Capability list: what the platform actually does, up front. */}
@@ -87,28 +91,28 @@ export default async function HomePage() {
             </ul>
 
             <div className="mt-9 flex flex-col gap-3 sm:flex-row">
-              <ButtonLink href="/signup" size="lg" className="w-full sm:w-auto">
-                Start free
+              <ButtonLink href="/signup" size="lg" className="w-full sm:w-auto shadow-lg shadow-brand-500/20">
+                <Sparkles size={16} className="text-white" />
+                Start AI Practice Free
               </ButtonLink>
               <ButtonLink
-                href="/pricing"
+                href="/career-tools"
                 size="lg"
                 variant="secondary"
                 className="w-full sm:w-auto"
               >
-                View Premium plans
+                Explore AI Career Tools
               </ButtonLink>
             </div>
 
-            <p className="mt-4 text-xs text-slate-500">
-              No card required. {pluralize(stats.freeQuizzes, "free quiz")} and{" "}
-              {pluralize(stats.freeScenarios, "free scenario")} included, plus
-              the Daily Challenge and full progress tracking.
+            <p className="mt-4 flex items-center gap-2 text-xs text-slate-500 font-mono">
+              <span className="inline-block h-1.5 w-1.5 rounded-full bg-mint-400" />
+              Instant free access &middot; No credit card required &middot; 30 question banks &amp; scenarios included
             </p>
           </div>
 
           {/* Product panel */}
-          <HeroPanel />
+          <AiHeroShowcase />
         </div>
 
         {/* Trust strip */}
@@ -470,12 +474,12 @@ export default async function HomePage() {
  * adjectives, so a visitor can tell what they are signing up for.
  */
 const HERO_POINTS = [
-  "Written explanations for every answer",
-  "Weak-area detection across topics",
-  "Real incident walkthroughs, step by step",
-  "AI Resume Review & JD Matcher (Waitlist)",
-  "Daily Challenge with streaks",
-  "Progress and score history",
+  "AI Incident Simulator (AWS, K8s, Linux)",
+  "Adaptive Weak-Area Question Engine",
+  "AI Resume Review & ATS Job Matcher",
+  "Deep Root-Cause Explanations for Every Answer",
+  "Interactive Multi-Step Diagnostics",
+  "Daily Cloud Incident Challenges & Streaks",
 ];
 
 /**
