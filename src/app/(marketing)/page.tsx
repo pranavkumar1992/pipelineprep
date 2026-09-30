@@ -56,7 +56,7 @@ export default async function HomePage() {
                 aria-hidden="true"
               />
               {stats.questions} questions &middot; {stats.topics} topics &middot;{" "}
-              {stats.scenarios} incident walkthroughs
+              {stats.scenarios} incident walkthroughs &middot; AI Career Tools
             </p>
 
             <h1 className="mt-6 text-balance text-4xl font-bold leading-[1.05] tracking-tight text-white sm:text-5xl lg:text-6xl">
@@ -473,9 +473,9 @@ const HERO_POINTS = [
   "Written explanations for every answer",
   "Weak-area detection across topics",
   "Real incident walkthroughs, step by step",
+  "AI Resume Review & JD Matcher (Waitlist)",
   "Daily Challenge with streaks",
   "Progress and score history",
-  "Works on any device",
 ];
 
 /**

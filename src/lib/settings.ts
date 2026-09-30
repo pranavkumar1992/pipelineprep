@@ -137,7 +137,10 @@ export async function isCareerToolsLive(): Promise<boolean> {
   if (raw !== undefined && raw !== "") return raw === "true";
 
   const stored = await readAll();
-  return stored[SETTING_KEYS.careerToolsEnabled] === "true";
+  if (stored[SETTING_KEYS.careerToolsEnabled] !== undefined) {
+    return stored[SETTING_KEYS.careerToolsEnabled] === "true";
+  }
+  return true;
 }
 
 /** Upserts one setting. Silently ignores blank values so keys can be cleared. */
